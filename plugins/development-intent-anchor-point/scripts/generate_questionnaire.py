@@ -540,6 +540,7 @@ def load_questions(path: Path) -> dict:
         q.setdefault("group", "通用问题")
         q.setdefault("question", "")
         q.setdefault("explanation", "")
+        q.setdefault("multiple", True)
         if not q["id"] or not q["question"]:
             sys.exit("每个问题都必须包含非空的 \"id\" 和 \"question\"。")
         if q["id"] in seen_ids:
