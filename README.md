@@ -74,8 +74,11 @@ development-intent-anchor-point/
 │   ├── skills/development-intent-anchor-point/SKILL.md   # 技能：需求确认工作流
 │   └── scripts/                        # 问卷生成 / 打开 / 答案读取脚本
 ├── docs/questionnaire-preview.png      # 问卷界面预览
+├── CHANGELOG.md                        # 更新记录与更新方式
 └── README.md                           # 本文件
 ```
+
+更新内容与更新方式见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 工作流中的文件
 
