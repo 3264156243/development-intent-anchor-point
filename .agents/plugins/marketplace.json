@@ -1,0 +1,20 @@
+{
+  "name": "development-intent-anchor-point",
+  "interface": {
+    "displayName": "开发意图锚点"
+  },
+  "plugins": [
+    {
+      "name": "development-intent-anchor-point",
+      "source": {
+        "source": "local",
+        "path": "./plugins/development-intent-anchor-point"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
