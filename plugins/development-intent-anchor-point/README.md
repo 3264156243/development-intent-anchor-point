@@ -19,8 +19,9 @@ codex plugin add development-intent-anchor-point@development-intent-anchor-point
 ## 用法
 
 1. 对 Codex 说“我要开始一个新项目……”或“先确认需求/生成需求问卷”；
-2. Codex 生成问卷并在浏览器打开：点选答案，带“★ 推荐”的是建议项；
-3. 答完后点「导出答案 JSON」，把 `answers.json` 路径告诉 Codex（或说“已保存”）；
+2. Codex 生成问卷并在浏览器打开：点选答案，带“★ 推荐”的是建议项，多选问题可勾选多个；
+3. 答完后点「保存答案」，`answers.json` 会自动写入问卷同目录（`.requirements-work/`），
+   把路径告诉 Codex（或说“已保存”）；
 4. Codex 生成 `requirements.md` 并继续提问未决问题，直到你说“开始工作”；
 5. 说“开始工作”后，Codex 删除临时问卷文件，保留 `requirements.md` 并开始实现；
 6. 开发中遇到没提过的问题，Codex 会直接问你，不会自行假设。
@@ -34,6 +35,7 @@ development-intent-anchor-point/
 │                                  # 技能：苏格拉底需求确认工作流
 └── scripts/
     ├── generate_questionnaire.py  # 从 questions.json 生成 HTML 问卷
+    ├── serve_questionnaire.py     # 本地服务：答案写入问卷同目录
     ├── open_html.py               # 在浏览器中打开 HTML
     └── read_answers.py            # 输出 answers.json 可读摘要
 ```

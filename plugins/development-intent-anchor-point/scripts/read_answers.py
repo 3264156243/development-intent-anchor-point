@@ -48,26 +48,40 @@ def main() -> None:
     for a in answers:
         groups.setdefault(a.get("group") or "通用问题", []).append(a)
 
+    status_names = {
+        "option": "选择",
+        "multiple": "多选",
+        "custom": "自定义",
+        "not_needed": "不需要",
+        "defer": "后续再定",
+    }
+
     for group, items in groups.items():
         print(f"## {group}")
         for a in items:
-            tag = mark_for(a)
-            status = {
-                "option": "选择",
-                "custom": "自定义",
-                "not_needed": "不需要",
-                "defer": "后续再定",
-            }.get(a.get("type"), a.get("type") or "未回答")
-            value = a.get("customText") or a.get("label") or ""
-            rec = " [推荐]" if a.get("recommended") else ""
-            note = f"（适合：{a['note']}）" if a.get("note") and a.get("type") == "option" else ""
-            print(f"{tag} {a.get('id', '?')} {a.get('question', '')}")
-            if a.get("answered"):
-                print(f"    [{status}{rec}] {value}{note}")
+            print(f"{mark_for(a)} {a.get('id', '?')} {a.get('question', '')}")
+            if not a.get("answered"):
+                print("    [未回答]")
+                continue
+            status = status_names.get(a.get("type"), a.get("type") or "未回答")
+            if a.get("type") == "multiple":
+                labels = a.get("labels") or []
+                if labels:
+                    parts = []
+                    for item in labels:
+                        if isinstance(item, dict):
+                            parts.append(item.get("label", "") + (" ★推荐" if item.get("recommended") else ""))
+                        else:
+                            parts.append(str(item))
+                    print(f"    [{status}] {'、'.join(parts)}")
+                else:
+                    print(f"    [{status}] （未选择任何选项）")
+            elif a.get("type") == "custom":
+                print(f"    [自定义] {a.get('customText') or '（空）'}")
             else:
-                print(f"    [未回答]")
-            if a.get("type") == "custom" and a.get("customText"):
-                print(f"    自定义回答: {a['customText']}")
+                rec = " [推荐]" if a.get("recommended") else ""
+                note = f"（适合：{a['note']}）" if a.get("note") and a.get("type") == "option" else ""
+                print(f"    [{status}{rec}] {a.get('label', '')}{note}")
         print()
 
 

@@ -119,35 +119,49 @@ description: >-
 - `explanation`：为什么问这个，帮助用户理解；
 - `options`：3–5 个选项，其中**至少一个标 `"recommended": true`**，每个选项的 `note` 说明
   “适合什么情况选它”；
+- `multiple`：`true`（默认）表示该题可多选，用户可勾选多个选项；`false` 为单选。特殊选项
+  （自定义 / 不需要 / 后续再定）在两种模式下都是互斥选择；
 - 用户还要求每个问题包含：**留空的用户自定义回答**、**不需要**、**后续开发再确认** 三个特殊选项
   ——脚本会自动补全，但如果你希望调整它们的文案，可以在 `options` 里显式添加
   `type: "custom"`、`type: "not_needed"`、`type: "defer"` 的选项覆盖默认值。
 
-### 3. 生成 HTML 问卷并在浏览器打开
+### 3. 生成 HTML 问卷、启动本地服务并在浏览器打开
 
 脚本位于插件根目录的 `scripts/` 下（与 `skills/` 同级）。Windows 用 `py`，macOS/Linux 用
 `python3`。若插件根目录不确定，先搜索 `generate_questionnaire.py` 所在目录。
 
 ```bash
+# 1) 生成问卷
 py <plugin-root>/scripts/generate_questionnaire.py \
   --questions .requirements-work/questions.json \
   --output .requirements-work/questionnaire.html \
-  --title "示例项目需求确认" \
-  --open
+  --title "示例项目需求确认"
+
+# 2) 启动本地保存服务（答案会写入问卷同目录），Windows（隐藏窗口后台运行）：
+Start-Process -WindowStyle Hidden py <plugin-root>/scripts/serve_questionnaire.py --directory .requirements-work --port 8765 --pid-file .requirements-work/server.pid
+# macOS/Linux 后台运行：
+# python3 <plugin-root>/scripts/serve_questionnaire.py --directory .requirements-work --port 8765 --pid-file .requirements-work/server.pid &
+
+# 3) 在浏览器打开（必须用 http 地址，file:// 无法写回同目录）
+py <plugin-root>/scripts/open_html.py http://127.0.0.1:8765/questionnaire.html
 ```
 
 生成后明确告诉用户：
 
 - 问卷已在浏览器打开，点选即可，标“★ 推荐”的是建议项，旁边有适用场景说明；
-- 还可以选“我自己来回答”“不需要”“后续再定”；
+- 多选题可勾选多个选项（题目标有「可多选」），单选题只能选一个；还可以选“我自己来回答”“不需要”
+  “后续再定”；
 - 答案自动保存在浏览器本地，关页面不丢；
-- 全部答完后点击「导出答案 JSON」，把下载的 `answers.json` 路径告诉 Codex，或直接说“已保存”；
+- 全部答完后点击「保存答案」，答案会自动写入问卷同目录的 `.requirements-work/answers.json`；
+  如果服务没有起来，会退化为下载或复制文本；
+- 之后把 `answers.json` 路径告诉 Codex，或直接说“已保存”；
 - 也可以点「复制答案文本」把文本直接粘贴回来。
 
 ### 4. 读取答案
 
-优先查找用户下载目录（Windows 为 `~/Downloads/answers.json`）或用户提供的路径；找不到就询问
-用户路径。用以下命令输出可读摘要，或直接读取 JSON：
+优先读取 `.requirements-work/answers.json`（服务正常时已自动写入问卷同目录）；若不存在，再查找
+用户下载目录（Windows 为 `~/Downloads/answers.json`）或用户提供的路径，找不到就询问用户。
+用以下命令输出可读摘要，或直接读取 JSON：
 
 ```bash
 py <plugin-root>/scripts/read_answers.py <answers.json 路径>
@@ -188,11 +202,14 @@ py <plugin-root>/scripts/read_answers.py <answers.json 路径>
 
 用户说“开始工作”后：
 
-1. 确认 `.requirements-work/` 的绝对路径是本次生成的临时目录，删除整个目录（问卷 HTML、
-   `questions.json`、`answers.json` 等临时文件），**保留 `requirements.md`**；
-2. 告知用户哪些文件被删除、哪些被保留；
-3. 制定实现计划，严格依照 `requirements.md` 开始工作；
-4. 实现过程中遇到文档未覆盖的模糊点，回到“黄金规则”，询问用户而不是臆断。
+1. 若启动了本地问卷服务（`serve_questionnaire.py`），先停止它：Windows 用
+   `Stop-Process -Id (Get-Content .requirements-work/server.pid)`，macOS/Linux 用
+   `kill $(cat .requirements-work/server.pid)`；
+2. 确认 `.requirements-work/` 的绝对路径是本次生成的临时目录，删除整个目录（问卷 HTML、
+   `questions.json`、`answers.json`、`server.pid` 等临时文件），**保留 `requirements.md`**；
+3. 告知用户哪些文件被删除、哪些被保留；
+4. 制定实现计划，严格依照 `requirements.md` 开始工作；
+5. 实现过程中遇到文档未覆盖的模糊点，回到“黄金规则”，询问用户而不是臆断。
 
 如果用户中途暂停或放弃，保留 `.requirements-work/`，下次可直接续作。
 
@@ -200,6 +217,7 @@ py <plugin-root>/scripts/read_answers.py <answers.json 路径>
 
 - `scripts/generate_questionnaire.py`：从 `questions.json` 生成自包含 HTML 问卷（`--open` 自动
   打开浏览器）；
+- `scripts/serve_questionnaire.py`：本地服务，让「保存答案」自动写入问卷同目录的 `answers.json`；
 - `scripts/open_html.py <path>`：重新在浏览器打开问卷；
 - `scripts/read_answers.py <answers.json>`：把导出的答案输出为可读摘要。
 

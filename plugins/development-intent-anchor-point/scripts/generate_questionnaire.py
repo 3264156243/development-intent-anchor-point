@@ -130,6 +130,7 @@ h1 { font-size: 26px; margin: 0 0 8px; }
 .badge.recommended { background: #dcfce7; color: var(--ok); }
 .badge.not-needed { background: #f3f4f6; color: var(--muted); }
 .badge.defer { background: #fef3c7; color: var(--warn); }
+.badge.multi { background: #e0e7ff; color: #4f46e5; }
 .opt .note { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
 .custom-box {
   margin-top: 10px;
@@ -203,11 +204,11 @@ h1 { font-size: 26px; margin: 0 0 8px; }
   </div>
 
   <div id="questions"></div>
-  <p class="hint">答案会自动保存在浏览器本地（localStorage），关闭页面后再次打开不会丢失。全部选完后，请点击下方「导出答案 JSON」，并把下载的 <b>answers.json</b> 路径告诉 Codex，或直接说“已保存”。</p>
+  <p class="hint">答案会自动保存在浏览器本地（localStorage），关闭页面后再次打开不会丢失。全部选完后，点击下方「保存答案」，答案会自动写入问卷同目录的 <b>answers.json</b>；若以文件方式直接打开问卷，则会退化为下载。之后把路径告诉 Codex，或直接说“已保存”。</p>
 </div>
 
 <div class="actions">
-  <button class="btn primary" id="exportBtn">导出答案 JSON</button>
+  <button class="btn primary" id="exportBtn">保存答案（写入问卷同目录）</button>
   <button class="btn" id="copyBtn">复制答案文本</button>
   <button class="btn danger" id="resetBtn">重置本问卷</button>
 </div>
@@ -215,6 +216,7 @@ h1 { font-size: 26px; margin: 0 0 8px; }
 
 <script type="application/json" id="qdata">__DATA_JSON__</script>
 <script>
+
 "use strict";
 const DATA = JSON.parse(document.getElementById("qdata").textContent);
 const KEY = "sq_answers::" + DATA.title;
@@ -235,10 +237,84 @@ function el(tag, cls, text) {
   return e;
 }
 
+function isSpecial(opt) {
+  return opt.type === "custom" || opt.type === "not_needed" || opt.type === "defer";
+}
+
+function defaultsFor(q) {
+  const base = {
+    type: null,
+    label: "",
+    recommended: false,
+    note: "",
+    customText: ""
+  };
+  if (q.multiple) base.labels = [];
+  return base;
+}
+
 function answerFor(q) {
   const a = answers[q.id];
   if (a && typeof a === "object") return a;
-  return { type: null, label: "", recommended: false, note: "", customText: "" };
+  const d = defaultsFor(q);
+  answers[q.id] = d;
+  return d;
+}
+
+function isSelected(q, opt) {
+  const a = answerFor(q);
+  if (isSpecial(opt)) return a.type === opt.type;
+  if (q.multiple) return a.type === "multiple" && a.labels.indexOf(opt.label) !== -1;
+  return a.type === "option" && a.label === opt.label;
+}
+
+function pickOption(q, opt) {
+  const a = answerFor(q);
+  if (isSpecial(opt)) {
+    answers[q.id] = {
+      type: opt.type,
+      label: opt.label,
+      recommended: false,
+      note: opt.note || "",
+      customText: opt.type === "custom" ? (a.customText || "") : ""
+    };
+    save();
+    renderAll();
+    return;
+  }
+  if (q.multiple) {
+    const labels = (a.type === "multiple" ? a.labels.slice() : []);
+    const idx = labels.indexOf(opt.label);
+    if (idx !== -1) {
+      labels.splice(idx, 1);
+    } else {
+      labels.push(opt.label);
+    }
+    if (labels.length === 0) {
+      answers[q.id] = defaultsFor(q);
+    } else {
+      answers[q.id] = {
+        type: "multiple",
+        label: "",
+        labels: labels,
+        recommended: false,
+        note: "",
+        customText: ""
+      };
+    }
+    save();
+    renderAll();
+    return;
+  }
+  answers[q.id] = {
+    type: "option",
+    label: opt.label,
+    recommended: !!opt.recommended,
+    note: opt.note || "",
+    customText: ""
+  };
+  save();
+  renderAll();
 }
 
 function renderOptions(q, box) {
@@ -246,7 +322,7 @@ function renderOptions(q, box) {
   q.options.forEach(function (opt) {
     const b = el("button", "opt");
     if (opt.type === "custom") b.classList.add("custom");
-    if (cur.type === opt.type) {
+    if (isSelected(q, opt)) {
       b.classList.add("selected");
       if (opt.type === "custom" && cur.customText) b.classList.add("has-text");
     }
@@ -261,18 +337,7 @@ function renderOptions(q, box) {
     }
     if (opt.note) main.appendChild(el("span", "note", "适合：" + opt.note));
     b.appendChild(main);
-    b.addEventListener("click", function () {
-      const prev = answerFor(q);
-      answers[q.id] = {
-        type: opt.type,
-        label: opt.label,
-        recommended: !!opt.recommended,
-        note: opt.note || "",
-        customText: opt.type === "custom" ? (prev.customText || "") : ""
-      };
-      save();
-      renderAll();
-    });
+    b.addEventListener("click", function () { pickOption(q, opt); });
     box.appendChild(b);
   });
 
@@ -299,6 +364,7 @@ function renderAll() {
     GROUP_ORDER[g].forEach(function (q) {
       const card = el("div", "card");
       const title = el("p", "q-title", q.idx + ". " + q.question);
+      if (q.multiple) title.appendChild(el("span", "badge multi", "可多选"));
       card.appendChild(title);
       if (q.explanation) card.appendChild(el("p", "q-explain", "为什么问：" + q.explanation));
       const box = el("div", "opts");
@@ -331,8 +397,8 @@ function save(doRender) {
   if (doRender !== false) updateProgress();
 }
 
-function exportAnswers() {
-  const payload = {
+function buildPayload() {
+  return {
     title: DATA.title,
     savedAt: new Date().toISOString(),
     answers: DATA.questions.map(function (q) {
@@ -341,15 +407,23 @@ function exportAnswers() {
         id: q.id,
         group: q.group,
         question: q.question,
+        multiple: !!q.multiple,
         answered: !!a.type,
-        type: a.type,
-        label: a.label,
-        recommended: a.recommended,
-        note: a.note,
+        type: a.type || null,
+        label: a.label || "",
+        labels: (a.labels || []).map(function (l) {
+          const opt = q.options.filter(function (o) { return o.label === l; })[0] || {};
+          return { label: l, recommended: !!opt.recommended, note: opt.note || "" };
+        }),
+        recommended: !!a.recommended,
+        note: a.note || "",
         customText: a.customText || ""
       };
     })
   };
+}
+
+function downloadAnswers(payload) {
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -359,17 +433,47 @@ function exportAnswers() {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  toast("已导出 answers.json（通常下载到“下载”文件夹）。请把路径告诉 Codex，或说“已保存”。");
+}
+
+function exportAnswers() {
+  const payload = buildPayload();
+  fetch("/save", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  }).then(function (resp) {
+    if (resp.ok) {
+      toast("已保存到问卷同目录：answers.json。把路径告诉 Codex，或说“已保存”。");
+      return;
+    }
+    throw new Error("server save failed");
+  }).catch(function () {
+    downloadAnswers(payload);
+    toast("已导出 answers.json（浏览器默认下载目录）。把路径告诉 Codex，或说“已保存”。");
+  });
 }
 
 function copyText() {
   const lines = ["# " + DATA.title, ""];
   DATA.questions.forEach(function (q) {
     const a = answerFor(q);
-    const tag = a.type === "option" ? (a.recommended ? " [推荐]" : "") : a.type === "custom" ? " [自定义]" : a.type === "not_needed" ? " [不需要]" : a.type === "defer" ? " [后续再定]" : "";
-    const val = a.type === "custom" && a.customText ? a.customText : a.type ? a.label : "（未回答）";
     lines.push(q.idx + ". " + q.question);
-    lines.push("   答案：" + val + tag);
+    if (!a.type) {
+      lines.push("   答案：（未回答）");
+      return;
+    }
+    if (a.type === "custom") {
+      lines.push("   答案（自定义）：" + (a.customText || "（空）"));
+    } else if (a.type === "multiple") {
+      const items = a.labels.map(function (l) {
+        const opt = q.options.filter(function (o) { return o.label === l; })[0] || {};
+        return opt.recommended ? l + " ★推荐" : l;
+      });
+      lines.push("   答案（多选）：" + items.join("、"));
+    } else {
+      const tag = a.type === "option" ? (a.recommended ? " [推荐]" : "") : a.type === "not_needed" ? " [不需要]" : a.type === "defer" ? " [后续再定]" : "";
+      lines.push("   答案：" + a.label + tag);
+    }
   });
   const text = lines.join("\\n");
   if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -408,6 +512,7 @@ document.getElementById("copyBtn").addEventListener("click", copyText);
 document.getElementById("resetBtn").addEventListener("click", resetAll);
 
 renderAll();
+
 </script>
 </body>
 </html>

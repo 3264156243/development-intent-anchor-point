@@ -1,6 +1,6 @@
 {
   "name": "development-intent-anchor-point",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Socratic requirements-confirmation workflow for Codex: generate an HTML questionnaire, capture answers, write a requirements/plan MD, and ask instead of assuming during development. 苏格拉底问答式需求确认工作流：开发意图锚点。",
   "author": {
     "name": "wanan"
